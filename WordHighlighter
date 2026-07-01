@@ -1,0 +1,95 @@
+// ==UserScript==
+// @name         Chinese Word Highlighter (On-Demand)
+// @namespace    http://tampermonkey.net
+// @version      1.1
+// @description  Highlights 10,000+ specific Chinese words ONLY when triggered
+// @match        http://*/*
+// @match        https://*/*
+// @match        file:///*
+// @run-at       document-end
+// @grant        none
+// ==/UserScript==
+
+(function() {
+    'use strict';
+
+    // 1. Paste your 10,000+ words here (Sorted longest to shortest!)
+    const wordList = ["计算机", "学习", "中国", "谢谢", "你好"]; 
+
+    if (wordList.length === 0) return;
+
+    // Escape and build regex
+    const escapedWords = wordList.map(word => word.replace(/[-\/\\^$*+?.()|[\]{}]/g, '\\$&'));
+    const regex = new RegExp(`(${escapedWords.join('|')})`, 'g');
+
+    // Inject highlighting styles
+    const style = document.createElement('style');
+    style.textContent = `
+        .custom-highlight { background-color: #98fb98 !important; color: #000 !important; font-weight: bold; }
+        #tm-highlight-btn { position: fixed; bottom: 20px; right: 20px; z-index: 999999; padding: 10px 15px; background: #007bff; color: white; border: none; border-radius: 5px; cursor: pointer; font-family: sans-serif; box-shadow: 0 2px 5px rgba(0,0,0,0.3); opacity: 0.7; }
+        #tm-highlight-btn:hover { opacity: 1; background: #0056b3; }
+    `;
+    document.head.appendChild(style);
+
+    // Core Highlight Function
+    function runHighlighting() {
+        console.log("Chinese Word Highlighter: Running scan...");
+        highlightTextNodes(document.body);
+    }
+
+    function highlightTextNodes(element) {
+        const walker = document.createTreeWalker(element, NodeFilter.SHOW_TEXT, {
+            acceptNode: function(node) {
+                const parent = node.parentNode.tagName;
+                if (['SCRIPT', 'STYLE', 'TEXTAREA', 'INPUT'].includes(parent)) {
+                    return NodeFilter.FILTER_REJECT;
+                }
+                return NodeFilter.FILTER_ACCEPT;
+            }
+        });
+
+        const nodesToReplace = [];
+        let currentNode;
+        while (currentNode = walker.nextNode()) {
+            if (regex.test(currentNode.nodeValue)) {
+                nodesToReplace.push(currentNode);
+            }
+        }
+
+        nodesToReplace.forEach(node => {
+            const parent = node.parentNode;
+            if (!parent) return;
+
+            const html = node.nodeValue.replace(regex, '<span class="custom-highlight">$1</span>');
+            const tempDiv = document.createElement('div');
+            tempDiv.innerHTML = html;
+
+            while (tempDiv.firstChild) {
+                parent.insertBefore(tempDiv.firstChild, node);
+            }
+            parent.removeChild(node);
+        });
+        console.log("Chinese Word Highlighter: Scan complete.");
+    }
+
+    // --- TRIGGER OPTION A: KEYBOARD SHORTCUT ---
+    // Press Ctrl + Shift + H (or Cmd + Shift + H on Mac) to highlight
+    window.addEventListener('keydown', function(e) {
+        if ((e.ctrlKey || e.metaKey) && e.shiftKey && e.key.toLowerCase() === 'h') {
+            e.preventDefault();
+            runHighlighting();
+        }
+    });
+
+    // --- TRIGGER OPTION B: FLOATING BUTTON ---
+    // Comment out this section if you only want the keyboard shortcut
+    const btn = document.createElement('button');
+    btn.id = 'tm-highlight-btn';
+    btn.innerText = '🔍 Highlight Chinese';
+    btn.addEventListener('click', function() {
+        runHighlighting();
+        btn.remove(); // Removes the button after clicking so it doesn't get in your way
+    });
+    document.body.appendChild(btn);
+
+})();
