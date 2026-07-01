@@ -1,0 +1,33 @@
+javascript:(function(){
+  const RAW_URL="https://raw.githubusercontent.com/Azv121/Highlighter/main/ZSvocab";
+  fetch(RAW_URL)
+    .then(r=>r.text())
+    .then(t=>{
+      const words=t.split(',').map(w=>w.trim()).filter(w=>w.length>0);
+      if(!words.length)return;
+      
+      /* FIX: Sort words from longest to shortest */
+      const sortedWords = words.sort((a, b) => b.length - a.length);
+      
+      const escaped=sortedWords.map(w=>w.replace(/[-\/\\^$*+?.()|[\]{}]/g,'\\$&'));
+      const regex=new RegExp(`(${escaped.join('|')})`,'g');
+      
+      function walk(el){
+        if(["SCRIPT","STYLE","INPUT","TEXTAREA","NOSCRIPT"].includes(el.tagName))return;
+        let c=el.firstChild;
+        while(c){
+          let n=c.nextSibling;
+          if(c.nodeType===3&&regex.test(c.nodeValue)){
+            const s=document.createElement('span');
+            s.innerHTML=c.nodeValue.replace(regex,'<mark style="background-color:#D4EDDA;color:#155724;">$1</mark>');
+            el.replaceChild(s,c)
+          }else if(c.nodeType===1){
+            walk(c)
+          }
+          c=n
+        }
+      }
+      walk(document.body);
+    })
+    .catch(e=>console.error("Error loading words:",e));
+})();
